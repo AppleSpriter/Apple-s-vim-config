@@ -22,7 +22,7 @@ colorscheme torte
 " set mouse=a  
 " set selection=exclusive  
 " set selectmode=mouse,key 
-"
+
 " vim全局<leader>设置为空格,默认为逗号
 let mapleader=' '
 " 设置底端状态栏
@@ -60,7 +60,7 @@ let g:ycm_min_num_of_chars_for_completion=2                 "
 " 从第2个键入字符就开始罗列匹配项
 
 
-" 配置intentLine
+" 配置intentLine 底端栏
 let g:indentLine_setColors = 0
 let g:indentLine_color_term = 239
 " none X terminal
@@ -94,6 +94,9 @@ let g:airline#extensions#whitespace#symbol = '!'
 
 "自动启动NERDTree
 autocmd vimenter * NERDTree
+" 自动显示Bookmark,:Bookmark xxx 添加xxx书签
+let NERDTreeShowBookmarks = 1
+
 "按,jd 会跳转到定义
 let g:ycm_confirm_extra_conf=0    "打开vim时不再询问是否加载ycm_extra_conf.py配置
 let g:ycm_collect_identifiers_from_tag_files = 1 "使用ctags生成的tags文件
@@ -115,7 +118,6 @@ Plugin 'tpope/vim-fugitive'
 " 只是此处的用户名可以省略
 Plugin 'L9'
 " " 由Git支持但不再github上的插件仓库 Plugin 'git clone 后面的地址'
-Plugin 'git://git.wincent.com/command-t.git'
 " " 本地的Git仓库(例如自己的插件) Plugin 'file:///+本地插件仓库绝对路径'
 " Plugin 'file:///home/gmarik/path/to/plugin'
 
