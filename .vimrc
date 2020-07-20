@@ -1,9 +1,13 @@
 set nocompatible              " 去除VI一致性,必须
 filetype off                  " 必须
 
+" 设置python PEP8 80行高亮
+set cc=80
 " 设置包括vundle和初始化相关的runtime path
 set rtp+=~/.vim/bundle/Vundle.vim
+" 设置全局行号和相对行号
 set number
+set relativenumber
 " 设定 tab 长度为 4
 set expandtab
 set tabstop=4
