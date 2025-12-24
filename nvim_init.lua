@@ -5,6 +5,7 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+
 -- 2. 安装 LSP 相关插件
 require("lazy").setup({
     -- [核心：LSP 服务] 为了精准跳转 nn.Linear 等源码
@@ -30,6 +31,7 @@ require("lazy").setup({
         'nvim-lualine/lualine.nvim',
         dependencies = { 'nvim-tree/nvim-web-devicons' }
     },
+    -- [滚动插件修复版]
     {
         "karb94/neoscroll.nvim",
         config = function()
@@ -42,7 +44,6 @@ require("lazy").setup({
             })
         end
     },
-
     -- [跳转] 替代 EasyMotion 的神器: flash.nvim
     {
         "folke/flash.nvim",
@@ -58,6 +59,7 @@ require("lazy").setup({
             { "r", mode = "o", function() require("flash").remote() end, desc = "Remote Flash" },
         },
     },
+    -- 代码大纲插件
     {
         'stevearc/aerial.nvim',
         opts = {},
@@ -79,9 +81,71 @@ require("lazy").setup({
         end
     },
     -- [补全引擎] 现代补全方案
-    { "hrsh7th/nvim-cmp" },
-    { "hrsh7th/cmp-nvim-lsp" },
-    { "L3MON4D3/LuaSnip" }, -- 代码片段引擎
+    {
+    "hrsh7th/nvim-cmp",
+            dependencies = {
+            "hrsh7th/cmp-nvim-lsp",     -- 让 cmp 支持 LSP 补全
+            "hrsh7th/cmp-buffer",       -- 补全当前文件里的关键词
+            "hrsh7th/cmp-path",         -- 补全文件路径
+            "L3MON4D3/LuaSnip",         -- 代码片段引擎
+            "saadparwaiz1/cmp_luasnip", -- 让 cmp 支持代码片段
+            "onsails/lspkind.nvim",     -- 为补全添加 VS Code 般的图标
+        },
+        config = function()
+            local cmp = require('cmp')
+            local lspkind = require('lspkind')
+
+            cmp.setup({
+                snippet = {
+                    expand = function(args)
+                        require('luasnip').lsp_expand(args.body)
+                    end,
+                },
+                -- 界面美化：添加边框和图标
+                window = {
+                    completion = cmp.config.window.bordered(),
+                    documentation = cmp.config.window.bordered(),
+                },
+                formatting = {
+                    format = lspkind.cmp_format({
+                        mode = 'symbol_text', 
+                        maxwidth = 50,
+                        ellipsis_char = '...',
+                    })
+                },
+                -- 快捷键设置
+                mapping = cmp.mapping.preset.insert({
+                    ['<C-b>'] = cmp.mapping.scroll_docs(-4),
+                    ['<C-f>'] = cmp.mapping.scroll_docs(4),
+                    ['<C-Space>'] = cmp.mapping.complete(),
+                    ['<CR>'] = cmp.mapping.confirm({ select = true }), 
+                    ['<Tab>'] = cmp.mapping(function(fallback)
+                        if cmp.visible() then
+                            cmp.select_next_item()
+                        elseif require("luasnip").expand_or_jumpable() then
+                            require("luasnip").expand_or_jump()
+                        else
+                            fallback()
+                        end
+                    end, { "i", "s" }),
+                    ['<S-Tab>'] = cmp.mapping(function(fallback)
+                        if cmp.visible() then
+                            cmp.select_prev_item()
+                        else
+                            fallback()
+                        end
+                    end, { "i", "s" }),
+                }),
+                -- 补全源优先级（LSP 最优先，然后是路径和缓存）
+                sources = cmp.config.sources({
+                    { name = 'nvim_lsp', priority = 1000 },
+                    { name = 'luasnip', priority = 750 },
+                    { name = 'buffer', priority = 500 },
+                    { name = 'path', priority = 250 },
+                })
+            })
+        end
+    },
     {
         "iamcco/markdown-preview.nvim",
         cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
@@ -102,11 +166,6 @@ require("lazy").setup({
 }
 )
 
-require("mason").setup()
-require("mason-lspconfig").setup({
-    ensure_installed = { "pyright" } -- 自动安装 Python 语言服务
-})
-
 -- ==========================================
 -- 3. 基础设置
 -- ==========================================
@@ -126,6 +185,31 @@ require("nvim-tree").setup()
 require("lualine").setup({ options = { theme = 'dracula' } })
 require("mason").setup()
 require("mason-lspconfig").setup({ ensure_installed = { "pyright" } })
+-- 在你的配置开头定义 capabilities
+local capabilities = require('cmp_nvim_lsp').default_capabilities()
+
+-- 修改你的 pyright 配置逻辑
+if vim.lsp.config then
+    vim.lsp.config('pyright', {
+        cmd = { "pyright-langserver", "--stdio" },
+        filetypes = { "python" },
+        capabilities = capabilities, -- 注入 cmp 支持
+        settings = {
+            python = {
+                analysis = {
+                    useLibraryCodeForTypes = true, -- 必须开启，否则 torch 补全不全
+                    autoSearchPaths = true,
+                }
+            }
+        },
+    })
+    vim.lsp.enable('pyright')
+else
+    -- 旧版兼容写法
+    require('lspconfig').pyright.setup({
+        capabilities = capabilities,
+    })
+end
 
 -- ==========================================
 -- 5. 快捷键映射 (按你的习惯配置)
@@ -160,6 +244,22 @@ vim.keymap.set('n', 'K', function()
         vim.lsp.buf.hover() -- 兼容旧版本
     end
 end, opts)-- 查看函数签名/文档说明
+-- 在新标签页 (Tab) 中打开定义
+vim.keymap.set('n', 'gT', function()
+    -- 先创建一个新标签页，再执行跳转
+    vim.cmd('tab split') 
+    if vim.lsp.definition then
+        vim.lsp.definition()
+    else
+        vim.lsp.buf.definition()
+    end
+end, { desc = "Go to Definition in new Tab" })
+
+-- 或者：在水平/垂直分屏中打开
+vim.keymap.set('n', 'gv', function()
+    vim.cmd('vsplit') -- 垂直分屏
+    vim.lsp.buf.definition()
+end)
 
 -- ==========================================
 -- 6. Python LSP 配置
@@ -177,3 +277,4 @@ else
     -- 兼容旧版本 (Neovim < 0.11)
     require('lspconfig').pyright.setup{}
 end
+
