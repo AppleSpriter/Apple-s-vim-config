@@ -8,3 +8,7 @@
 - Vundle: manage package
 - vim-easymotion: move quickly and smart
 - ctrlp: search quickly and smart
+
+## nvim
+
+nvim_init.lua path is ~/.config/nvim/init.lua

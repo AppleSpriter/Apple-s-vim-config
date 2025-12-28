@@ -52,7 +52,7 @@ require("lazy").setup({
         opts = {},
         keys = {
             -- 核心快捷键：按 s 键开始瞬移
-            { "<leader><leader>s", mode = { "n", "x", "o" }, function() require("flash").jump() end, desc = "Flash" },
+            { "\\", mode = { "n", "x", "o" }, function() require("flash").jump() end, desc = "Flash" },
             -- 针对树形选择（比如想选定一个函数块）
             { "S", mode = { "n", "x", "o" }, function() require("flash").treesitter() end, desc = "Flash Treesitter" },
             -- 在跳转中搜索
@@ -178,36 +178,96 @@ vim.opt.expandtab = true       -- 空格替换 Tab
 vim.opt.cursorline = true      -- 高亮当前行
 vim.opt.termguicolors = true   -- 启用真彩色支持（重要！）
 
+-- F4 全局粘贴
+vim.g.paste_model = 0
+local function toggle_paste()
+    if vim.g.paste_model == 1 then
+        vim.opt.paste = false
+        vim.g.paste_model = 0
+        print("Paste Mode: OFF") -- 可选：在下方状态栏提示
+    else
+        vim.opt.paste = true
+        vim.g.paste_model = 1
+        print("Paste Mode: ON")
+    end
+end
+vim.keymap.set('n', '<F4>', toggle_paste, { silent = true, desc = "Toggle Paste Mode" })
+
+-- 全局粘贴
+vim.g.show_number = 1
+local function toggle_number()
+    if vim.g.show_number == 1 then
+        vim.mouse = ""
+        vim.opt.number = false
+        vim.opt.relativenumber = false
+        vim.g.show_number = 0
+        print("Focus Mode: ON (No numbers/mouse)") -- 提示
+    else
+	    vim.opt.mouse = "a"
+	    vim.opt.number = true
+	    vim.opt.relativenumber = true
+	    vim.g.show_number = 1
+	    print("Focus Mode: OFF (Numbers/mouse enabled)")
+    end
+end
+vim.keymap.set('n', '<F2>', toggle_number, { silent = true, desc = "Toggle Number and Mouse" })
+
 -- ==========================================
 -- 4. 插件初始化设置
 -- ==========================================
 require("nvim-tree").setup()
 require("lualine").setup({ options = { theme = 'dracula' } })
+
+-- Mason 基础设置
 require("mason").setup()
-require("mason-lspconfig").setup({ ensure_installed = { "pyright" } })
--- 在你的配置开头定义 capabilities
+require("mason-lspconfig").setup({
+    ensure_installed = { "pyright" } 
+})
+
+local function get_python_path()
+    -- 如果你激活了 conda 环境，环境变量里会有 VIRTUAL_ENV 或 CONDA_PREFIX
+    local venv = os.getenv("VIRTUAL_ENV") or os.getenv("CONDA_PREFIX")
+    if venv then
+        -- macOS/Linux 路径是 /bin/python，Windows 是 /python.exe
+        local path = venv .. "/bin/python"
+        return path
+    end
+    -- 兜底使用系统 python
+    return "python3"
+end
+
 local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
--- 修改你的 pyright 配置逻辑
 if vim.lsp.config then
+    -- Neovim 0.11+ 规范
     vim.lsp.config('pyright', {
         cmd = { "pyright-langserver", "--stdio" },
         filetypes = { "python" },
-        capabilities = capabilities, -- 注入 cmp 支持
+        capabilities = capabilities,
+        -- 核心：告诉 Pyright 去哪里找 torch 等库
         settings = {
             python = {
+                pythonPath = get_python_path(), -- 调用上面的函数
                 analysis = {
-                    useLibraryCodeForTypes = true, -- 必须开启，否则 torch 补全不全
+                    useLibraryCodeForTypes = true,
                     autoSearchPaths = true,
-                }
-            }
+                    diagnosticMode = "workspace",
+                },
+            },
         },
+        root_markers = { ".git", "pyproject.toml", "setup.py", "requirements.txt" },
     })
     vim.lsp.enable('pyright')
 else
-    -- 旧版兼容写法
+    -- 兼容旧版 (lspconfig)
     require('lspconfig').pyright.setup({
         capabilities = capabilities,
+        settings = {
+            python = {
+                pythonPath = get_python_path(),
+                analysis = { useLibraryCodeForTypes = true }
+            }
+        }
     })
 end
 
@@ -220,7 +280,7 @@ local opts = { silent = true }
 -- [文件树] 依然用 F3 打开/关闭
 keymap('n', '<F3>', ':NvimTreeToggle<CR>', opts)
 -- 设置 F4 键打开/关闭函数列表
-vim.keymap.set('n', '<F4>', '<cmd>AerialToggle!<CR>', { silent = true })
+vim.keymap.set('n', '<F1>', '<cmd>AerialToggle!<CR>', { silent = true })
 
 -- [Telescope] 替代 CtrlP 
 -- 空格+ff 搜文件; 空格+fg 搜内容 (类似 grep)
@@ -261,20 +321,4 @@ vim.keymap.set('n', 'gv', function()
     vim.lsp.buf.definition()
 end)
 
--- ==========================================
--- 6. Python LSP 配置
--- ==========================================
--- 现在的标准写法：
-if vim.lsp.config then
-    -- 0.11+ 的原生写法
-    vim.lsp.config('pyright', {
-        cmd = { "pyright-langserver", "--stdio" },
-        filetypes = { "python" },
-        root_markers = { ".git", "pyproject.toml", "setup.py", "requirements.txt" },
-    })
-    vim.lsp.enable('pyright')
-else
-    -- 兼容旧版本 (Neovim < 0.11)
-    require('lspconfig').pyright.setup{}
-end
 
